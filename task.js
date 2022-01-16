@@ -56,6 +56,7 @@ function GetNeighbors(maze, x, y, ans) {
 }
 
 function CreatelRelatedMap(maze, path) {
+  path.clear();
   for (let y = 0; y < maze.length; y++) {
     for (let x = 0; x < maze[y].length; x++) {
       let elem = maze[y][x];
@@ -77,7 +78,6 @@ function PickDirection(startpoint, endpoint, mazeWidth, mazeheight) {
   }
   let xDifference = endpoint.x - startpoint.x;
   let yDifference = endpoint.y - startpoint.y;
-  // console.log(xDifference, yDifference, mazeWidth, mazeheight);
   switch (xDifference) {
     case 1:
       return "right";
@@ -117,6 +117,7 @@ function GetReverseDirection(direction) {
 }
 
 function IdToPoint(id) {
+  if(typeof id === 'object') return id;
   let x = 0;
   if (id >= 1000) {
     x = Math.floor(id / 1000);
@@ -126,8 +127,13 @@ function IdToPoint(id) {
 }
 
 function PointToId(point) {
+  if (typeof point === 'number') return point;
   let x = point.x;
   let y = point.y;
+  x = (x === -1 ? mazeWidth : x);
+  y = (y === -1 ? mazeheight : y);
+  x = (x === mazeWidth+1 ? 0 : x);
+  y = (y === mazeheight+1 ? 0 : y);
   let number = x * 1000 + y;
   return number;
 }
@@ -136,7 +142,8 @@ function dfs(NeighborsMap, v, visited, path, mazeWidth, mazeheight) {
   if (visited.has(v)) return false;
   visited.add(v);
   for (let neighbor of NeighborsMap.get(v)) {
-    if (!visited.has(neighbor)) {
+    let kek = food.get(neighbor);
+    if (!visited.has(neighbor) && !food.get(neighbor)) {
       path.push(PickDirection(v, neighbor, mazeWidth, mazeheight));
       let reached = dfs(
         NeighborsMap,
@@ -152,40 +159,50 @@ function dfs(NeighborsMap, v, visited, path, mazeWidth, mazeheight) {
   }
 }
 
-function AddGhostwall(entities, maze) {
-  for (const entitie of entities) {
-    if (entitie.type === "ghost") {
-      let x = entitie.position.x;
-      let y = entitie.position.y;
-      maze[y][x] = "X";
-    }
-    if (entitie.type === "pacdot") {
-      break;
-    }
-  }
+function bfs(NeighborsMap, s, path, mazeWidth, mazeheight) {
+  let visited = new Set();
+  let  previous = new Map();
+	let queue = [];
+	queue.push(s);
+  visited.add(s);
+  previous.set(s, -1);
+	while(queue.length > 0) {
+		let v = queue.shift()
+		for(let neighbor of NeighborsMap.get(v)) {
+			if(!visited.has(neighbor)) {
+				queue.push(neighbor);
+        previous.set(neighbor, v);
+				visited.add(neighbor);
+				if(kek(neighbor)) {
+          path.push(...lol(neighbor, previous, mazeWidth, mazeheight));
+          return neighbor;
+        }
+			}
+		} 
+	}
+	return false
 }
 
-// function NextPosToWall(entities, nextPosDirection, maze) {
-//     let nexPos = GetNextPos(entities, nextPosDirection);
-//     nexPos = IdToPoint(nexPos);
-//     let x = nexPos.x;
-//     let y = nexPos.y;
-//     maze[y][x] = "X";
-//     kek.push(nexPos);
-// }
+function lol(point, previous, mazeWidth, mazeheight) {
+  let ans = [];
+  while (previous.get(point) != -1) {
+    ans.push(PickDirection(point, previous.get(point), mazeWidth, mazeheight));
+    point = previous.get(point);
+  }
+  ans = ans.map(x => GetReverseDirection(x)).reverse();
+  return ans;
+}
 
-// function PosToNoWall(position, maze) {
-//     let x = position.x;
-//     let y = position.y;
-//     maze[y][x] = " ";
-//     kek.shift()
-// }
+function kek(point) {
+  if (!food.get(point)) return true;
+  return false;
+}
 
 function CreatePath(entities, maze, path, NeighborsMap) {
   let visited = new Set();
-  CreatelRelatedMap(maze, NeighborsMap);
   let start = PointToId(entities[0].position);
-  dfs(NeighborsMap, start, visited, path, maze[0].length - 1, maze.length - 1);
+  start = bfs(NeighborsMap, start, path, mazeWidth, mazeheight);
+  dfs(NeighborsMap, start, visited, path, mazeWidth, mazeheight);
 }
 
 function IsNeighbor(point1, point2, NeighborsMap) {
@@ -205,9 +222,6 @@ function GetSetOfDangerousPositions(entities) {
       break;
     }
     if (entitie.type == "ghost") {
-        // console.log(entitie);
-        // console.log(PointToId(entitie.position));
-        // console.log(NeighborsMap.get(PointToId(entitie.position)));
       let dangerPosPerOneGhost = NeighborsMap.get(PointToId(entitie.position));
       if (dangerPosPerOneGhost) {
         dangerPositions = new Set([...dangerPositions, ...dangerPosPerOneGhost]);
@@ -242,21 +256,162 @@ function IsNextPosDangerous(entities, nextPosDirection) {
   return false;
 }
 
+function CreateFoodMap(entities, food) {
+  for (const entitie of entities) {
+    if (entitie.type === 'pacdot' || entitie.type === 'powerPellet') {
+      food.set(PointToId(entitie.position), false)
+    }
+  }
+}
+
+function MarkFood(entities) {
+  const pacmanId = PointToId(entities[0].position);
+  if (food.has(pacmanId)){
+    food.set(pacmanId, true);
+  }
+}
+
+function NextPosToWall(entities, nextPosDirection, maze) {
+    let nexPos = GetNextPos(entities, nextPosDirection);
+    nexPos = IdToPoint(nexPos);
+    PosToWall(nexPos, maze, entities);
+}
+
+function NextPosToUnwall(entities, nextPosDirection, maze) {
+  let nexPos = GetNextPos(entities, nextPosDirection);
+  PosToUnwall(nexPos, maze);
+}
+
+function PosToWall (pos, maze, entities) {
+  pos = IdToPoint(pos);
+  let x = pos.x;
+  let y = pos.y;
+  if(x != entities[0].position.x || y != entities[0].position.y) maze[y][x] = "X";
+}
+
+function PosToUnwall (pos, maze) {
+  pos = IdToPoint(pos);
+  let x = pos.x;
+  let y = pos.y;
+  maze[y][x] = " ";
+}
+
+function AddGhostWall(entities, maze) {
+  for (const entitie of entities) {
+    if (entitie.type === "ghost") {
+      PosToWall(entitie.position, maze, entities)
+    }
+    if (entitie.type === "pacdot") {
+      break;
+    }
+  }
+}
+
+function AddGhostUnwall(entities, maze) {
+  for (const entitie of entities) {
+    if (entitie.type === "ghost") {
+      PosToUnwall(entitie.position, maze)
+    }
+    if (entitie.type === "pacdot") {
+      break;
+    }
+  }
+}
+
+function DangerousPositionsToWall(entities, maze) {
+  let dangerPositions = GetSetOfDangerousPositions(entities);
+  for(const position of dangerPositions) {
+    PosToWall(position, maze, entities);
+  }
+}
+
+function DangerousPositionsToUnwall(entities, maze) {
+  let dangerPositions = GetSetOfDangerousPositions(entities);
+  for(const position of dangerPositions) {
+    PosToUnwall(position, maze);
+  }
+}
+
+function GetRetreatDirection (entities, maze) {
+  let nextPosDirection;
+  if (i === 0) {
+    CreatePath(entities, maze, path, NeighborsMap);
+    nextPosDirection= path[i];
+  } else {
+    i--;
+    nextPosDirection = GetReverseDirection(path[i]);
+  }
+  if (!IsNextPosDangerous(entities, nextPosDirection)) return nextPosDirection;
+  path.length = 0;
+  i = 0;
+  danger = false;
+  let temp = new Map(NeighborsMap);
+
+  NextPosToWall(entities, nextPosDirection, maze);
+  AddGhostWall(entities, maze)
+  DangerousPositionsToWall(entities, maze)
+  CreatelRelatedMap(maze, NeighborsMap);
+  CreatePath(entities, maze, path, NeighborsMap);
+  NeighborsMap = temp;
+  DangerousPositionsToUnwall(entities, maze)
+  AddGhostUnwall(entities, maze)
+  NextPosToUnwall(entities, nextPosDirection, maze);
+  return path[i++];
+}
+
+
+
+function sleep(milliseconds) {
+  const date = Date.now();
+  let currentDate = null;
+  do {
+    currentDate = Date.now();
+  } while (currentDate - date < milliseconds);
+}
+
+
 let NeighborsMap = new Map();
 let path = [];
 let i = 0;
+let food = new Map();
+let danger = false;
+let stepsAfterStart = 0;
+let mazeWidth = -1;
+let mazeheight = -1;
 function pacmanDirectionHandler(entities, maze) {
-  // console.log(maze);
-  console.log(entities);
-  if (path.length == 0) {
-    AddGhostwall(entities, maze);
+  stepsAfterStart++;
+  MarkFood(entities)
+  // console.log(path.length)
+  // console.log(i)
+  console.log(entities[0].position)
+  if (stepsAfterStart === 1) {
+    //AddGhostwall(entities, maze);
+    mazeWidth = maze[0].length - 1;
+    mazeheight = maze.length - 1;
+    CreateFoodMap(entities, food);
+    CreatelRelatedMap(maze, NeighborsMap);
     CreatePath(entities, maze, path, NeighborsMap);
   }
-//   if (IsNextPosDangerous(entities, path[i])) {
-//     console.log("DANGER!!!!!!!!")
-//     i--;
-//     return GetReverseDirection(path[i]);
-//   }
+  if(path.length == i) {
+    path.length = 0;
+    i = 0;
+    CreatePath(entities, maze, path, NeighborsMap);
+  }
+  if(stepsAfterStart == 205) {
+    console.log()
+  }
+  if (IsNextPosDangerous(entities, path[i])) {
+    console.log("DANGER!!!!!!!!")
+    danger = true;
+    return GetRetreatDirection(entities, maze);
+  }
+  if (danger) {
+    console.log('LOOOOOOOOOOOOOOL')
+    path.length = 0;
+    i = 0;
+    danger = false;
+    CreatePath(entities, maze, path, NeighborsMap);
+  }
   return path[i++];
 }
 

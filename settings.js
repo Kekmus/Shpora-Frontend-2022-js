@@ -2035,7 +2035,7 @@ var GAME_SETTINGS = {
         ghosts: [],
     },
     secondTask: getRandomItem(secondLevel),
-    thirdTask: thirdLevel[0],
+    thirdTask: thirdLevel[9],
 };
 Object.values(GAME_SETTINGS).forEach((settings) => {
     settings.mazeArray.forEach((row, rowIndex) => {
